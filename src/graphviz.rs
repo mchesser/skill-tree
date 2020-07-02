@@ -1,4 +1,4 @@
-use crate::tree::{Goal, Group, SkillTree, Status};
+use crate::tree::{Goal, Group, SkillTree, StatusStyle};
 use fehler::throws;
 use std::io::Write;
 
@@ -27,7 +27,7 @@ fn write_graphviz(tree: &SkillTree, output: &mut dyn Write) {
 
     for group in tree.groups() {
         writeln!(output, r#""{}" ["#, group.name)?;
-        write_group_label(group, output)?;
+        write_group_label(tree, group, output)?;
         writeln!(output, r#"  shape = "none""#)?;
         writeln!(output, r#"  margin = 0"#)?;
         writeln!(output, r#"]"#)?;
@@ -86,10 +86,6 @@ fn write_graphviz(tree: &SkillTree, output: &mut dyn Write) {
     writeln!(output, r#"}}"#)?;
 }
 
-const WATCH_EMOJI: &str = "⌚";
-const HAMMER_WRENCH_EMOJI: &str = "🛠️";
-const CHECKED_BOX_EMOJI: &str = "☑️";
-const RAISED_HAND_EMOJI: &str = "🙋";
 
 fn escape(s: &str) -> String {
     htmlescape::encode_minimal(s).replace('\n', "<br/>")
@@ -103,7 +99,7 @@ fn write_goal_label(goal: &Goal, output: &mut dyn Write) {
 }
 
 #[throws(anyhow::Error)]
-fn write_group_label(group: &Group, output: &mut dyn Write) {
+fn write_group_label(tree: &SkillTree, group: &Group, output: &mut dyn Write) {
     writeln!(output, r#"  label = <<table>"#)?;
 
     let label = group.label.as_ref().unwrap_or(&group.name);
@@ -124,25 +120,23 @@ fn write_group_label(group: &Group, output: &mut dyn Write) {
     )?;
 
     for item in &group.items {
-        let item_status = item.status.or(group.status).unwrap_or(Status::Unassigned);
-        let (emoji, fontcolor, mut start_tag, mut end_tag) = match item_status {
-            Status::Blocked => (
-                WATCH_EMOJI,
-                None,
-                "<i><font color=\"lightgrey\">",
-                "</font></i>",
-            ),
-            Status::Unassigned => (RAISED_HAND_EMOJI, Some("red"), "", ""),
-            Status::Assigned => (HAMMER_WRENCH_EMOJI, None, "", ""),
-            Status::Complete => (CHECKED_BOX_EMOJI, None, "<s>", "</s>"),
+        let item_status = item
+            .status
+            .as_ref()
+            .or(group.status.as_ref())
+            .or(tree.default_status.as_ref());
+
+        let mut style = match item_status.and_then(|x| tree.status.get(x)) {
+            Some(style) => style.clone(),
+            None => StatusStyle::default(),
         };
 
-        let fontcolor = attribute_str("fontcolor", &fontcolor, "");
-        let bgcolor = attribute_str("bgcolor", &Some("cornsilk"), "");
+        let fontcolor = attribute_str("fontcolor", &style.fontcolor, "");
+        let bgcolor = attribute_str("bgcolor", &style.bgcolor, "");
         let href = attribute_str("href", &item.href, "");
-        if item.href.is_some() && start_tag == "" {
-            start_tag = "<u>";
-            end_tag = "</u>";
+        if item.href.is_some() && style.start_tag == "" {
+            style.start_tag = "<u>".to_owned();
+            style.end_tag = "</u>".to_owned();
         }
         let port = item.port.as_ref().map(|port| format!("_{}", port));
         let port_in = attribute_str("port", &port, "_in");
@@ -158,13 +152,13 @@ fn write_group_label(group: &Group, output: &mut dyn Write) {
              </tr>",
             fontcolor = fontcolor,
             bgcolor = bgcolor,
-            emoji = emoji,
+            emoji = style.emoji.as_ref().map_or("", String::as_ref),
             href = href,
             port_in = port_in,
             port_out = port_out,
             label = item.label,
-            start_tag = start_tag,
-            end_tag = end_tag,
+            start_tag = style.start_tag,
+            end_tag = style.end_tag,
         )?;
     }
 

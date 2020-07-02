@@ -1,11 +1,78 @@
 use fehler::throws;
 use serde_derive::Deserialize;
+use std::collections::HashMap;
 use std::path::Path;
 
 #[derive(Debug, Deserialize)]
 pub struct SkillTree {
+    #[serde(default = "default_status_kinds")]
+    pub status: HashMap<String, StatusStyle>,
+    #[serde(default = "default_status")]
+    pub default_status: Option<String>,
     pub group: Vec<Group>,
     pub goal: Option<Vec<Goal>>,
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct StatusStyle {
+    pub emoji: Option<String>,
+    pub bgcolor: Option<String>,
+    pub fontcolor: Option<String>,
+    #[serde(default)]
+    pub start_tag: String,
+    #[serde(default)]
+    pub end_tag: String,
+}
+
+const WATCH_EMOJI: &str = "⌚";
+const HAMMER_WRENCH_EMOJI: &str = "🛠️";
+const CHECKED_BOX_EMOJI: &str = "☑️";
+const RAISED_HAND_EMOJI: &str = "🙋";
+
+fn default_status_kinds() -> HashMap<String, StatusStyle> {
+    vec![
+        // Can't work on it now
+        ("Blocked".to_owned(), StatusStyle {
+            emoji: Some(WATCH_EMOJI.to_owned()),
+            bgcolor: Some("cornsilk".to_owned()),
+            fontcolor: None,
+            start_tag: "<i><font color=\"lightgrey\">".to_owned(),
+            end_tag: "</font></i>".to_owned(),
+        }),
+
+        // Would like to work on it, but need someone
+        ("Unassigned".to_owned(), StatusStyle {
+            emoji: Some(RAISED_HAND_EMOJI.to_owned()),
+            bgcolor: Some("cornsilk".to_owned()),
+            fontcolor: Some("red".to_owned()),
+            start_tag: "".to_owned(),
+            end_tag: "".to_owned(),
+        }),
+
+        // People are actively working on it
+        ("Assigned".to_owned(), StatusStyle {
+            emoji: Some(HAMMER_WRENCH_EMOJI.to_owned()),
+            bgcolor: Some("cornsilk".to_owned()),
+            fontcolor: None,
+            start_tag: "".to_owned(),
+            end_tag: "".to_owned(),
+        }),
+
+        // This is done!
+        ("Complete".to_owned(), StatusStyle {
+            emoji: Some(CHECKED_BOX_EMOJI.to_owned()),
+            bgcolor: Some("cornsilk".to_owned()),
+            fontcolor: None,
+            start_tag: "<s>".to_owned(),
+            end_tag: "</s>".to_owned(),
+        }),
+    ]
+    .into_iter()
+    .collect()
+}
+
+fn default_status() -> Option<String> {
+    Some("Unassigned".to_owned())
 }
 
 #[derive(Debug, Deserialize)]
@@ -23,7 +90,7 @@ pub struct Group {
     pub requires: Option<Vec<String>>,
     pub items: Vec<Item>,
     pub width: Option<f64>,
-    pub status: Option<Status>,
+    pub status: Option<String>,
     pub href: Option<String>,
     pub header_color: Option<String>,
 }
@@ -37,26 +104,11 @@ pub struct Item {
     pub href: Option<String>,
     pub port: Option<String>,
     pub requires: Option<Vec<String>>,
-    pub status: Option<Status>,
+    pub status: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct ItemIndex(pub usize);
-
-#[derive(Copy, Clone, Debug, Deserialize)]
-pub enum Status {
-    /// Can't work on it now
-    Blocked,
-
-    /// Would like to work on it, but need someone
-    Unassigned,
-
-    /// People are actively working on it
-    Assigned,
-
-    /// This is done!
-    Complete,
-}
 
 impl SkillTree {
     #[throws(anyhow::Error)]
