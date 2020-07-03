@@ -58,12 +58,17 @@ fn write_graphviz(tree: &SkillTree, output: &mut dyn Write) {
         for item in group.items() {
             if let Some(requires) = &item.requires {
                 for requirement in requires {
+                    let port = item
+                        .port
+                        .as_ref()
+                        .ok_or_else(|| anyhow::format_err!("missing port for: {}", item.label))?;
+
                     writeln!(
                         output,
                         r#"{} -> "{}":_{}_in;"#,
                         tree.port_name(requirement, "out"),
                         group.name,
-                        item.port.as_ref().expect("missing port"),
+                        port,
                     )?;
                 }
             }
